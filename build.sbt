@@ -1,7 +1,7 @@
 organization := "com.github.norwae"
 name := "ignifera"
 
-version := "1.0"
+version := "1.0.0-SNAPSHOT"
 
 scalaVersion := "2.12.2"
 crossScalaVersions := Seq("2.11.8")
