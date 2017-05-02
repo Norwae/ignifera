@@ -11,7 +11,7 @@ class StandaloneExport(port: Int, interface: String = "0.0.0.0", observedPath: P
   private val route: Route = Route seal {
     get {
       path(observedPath) {
-          IncludedHttpExport$.statusRoute
+          IncludedHttpExport.statusRoute
       }
     }
   }
