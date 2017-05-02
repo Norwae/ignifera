@@ -1,9 +1,9 @@
 package com.github.norwae.ignifer
 
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{HttpMethod, HttpRequest, HttpResponse}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, BidiShape, Inlet, Outlet}
-import io.prometheus.client.{Counter, Gauge}
+import io.prometheus.client.{Counter, Gauge, Histogram}
 
 class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
   private val inboundRequest = Inlet[HttpRequest]("rq-in")
@@ -13,11 +13,13 @@ class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest,
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     import StatsCollectorStage._
+
+    var inFlightData = Vector.empty[(Histogram.Timer, HttpMethod)]
     val requestForward = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val request = grab(inboundRequest)
         requestsInFlight.inc()
-        requestsTotal.labels(request.method.value).inc()
+        inFlightData = inFlightData :+ (requestTimes.startTimer(), request.method)
 
         push(outboundRequest, request)
       }
@@ -28,8 +30,11 @@ class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest,
     val responseForward = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val response = grab(inboundResponse)
+        val (start, method) = inFlightData.head
+        inFlightData = inFlightData.tail
         requestsInFlight.dec()
-        responsesTotal.labels(response.status.value).inc()
+        responsesTotal.labels(method.value, response.status.value).inc()
+        start.close()
         push(outboundResponse, response)
       }
 
@@ -50,13 +55,14 @@ object StatsCollectorStage {
   private val requestsInFlight = Gauge.
     build("http_requests_in_flight", "Requests currently in flight").
     register()
-  private val requestsTotal = Counter.
-    build("http_requests_total", "Requests received by the application").
-    labelNames("method").
-    register()
   private val responsesTotal = Counter.
     build("http_responses_total", "Responses issued by the application").
-    labelNames("status").
+    labelNames("method", "status").
     register()
+  private val requestTimes = Histogram.
+    build("http_request_time", "Time to response determined").
+    buckets(0.005,0.01,0.025,0.05,0.075,0.1,0.25,0.5,0.75,1,2.5,5,7.5,10).
+    register()
+
 
 }
