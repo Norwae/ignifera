@@ -20,5 +20,8 @@ libraryDependencies ++= Seq(
   // and the prometheus stuff
   "io.prometheus" % "simpleclient" % prometheusVersion,
   "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
-  "io.prometheus" % "simpleclient_common" % prometheusVersion
+  "io.prometheus" % "simpleclient_common" % prometheusVersion,
+
+  // testing dependencies
+  "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 )
