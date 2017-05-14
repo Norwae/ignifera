@@ -19,7 +19,7 @@ import io.prometheus.client.hotspot.DefaultExports
 trait HttpExport {
   DefaultExports.initialize()
 
-  protected val registry: CollectorRegistry = CollectorRegistry.defaultRegistry
+  val registry: CollectorRegistry = CollectorRegistry.defaultRegistry
 
   /**
     * Queries the [[registry]] and produces an [[HttpResponse]] object that encapsulates
