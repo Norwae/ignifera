@@ -1,4 +1,4 @@
-#Ignifera
+# Ignifera
 
 Ignifera is an exporter of [akka-http](http://akka.io) statistics for [Prometheus](https://prometheus.io/). The 
 exporter exposes either an endpoint of its own, or can be integrated into the routing directive.
