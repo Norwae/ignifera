@@ -5,6 +5,8 @@ import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, BidiShape, Inlet, Outlet}
 import io.prometheus.client.{Counter, Gauge, Summary}
 
+import scala.concurrent.duration._
+
 class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
   private val inboundRequest = Inlet[HttpRequest]("rq-in")
   private val outboundRequest = Outlet[HttpRequest]("rq-out")
@@ -14,12 +16,12 @@ class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest,
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     import StatsCollectorStage._
 
-    var inFlightData = Vector.empty[(Summary.Timer, HttpRequest)]
+    var inFlightData = Vector.empty[(Long, HttpRequest)]
     val requestForward = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val request = grab(inboundRequest)
         requestsInFlight.inc()
-        inFlightData = inFlightData :+ (requestTimes.startTimer(), request)
+        inFlightData = inFlightData :+ (System.nanoTime(), request)
 
         push(outboundRequest, request)
       }
@@ -32,14 +34,16 @@ class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest,
         val response = grab(inboundResponse)
         val (start, request) = inFlightData.head
         val method = request.method.value
-        val status = response.status.value
+        val status = response.status.intValue().toString
         inFlightData = inFlightData.tail
 
         requestsInFlight.dec()
-        estimateSize(request).foreach(requestSize.labels(method, status).observe)
-        estimateSize(response).foreach(responseSize.labels(method, status).observe)
-        responsesTotal.labels(method, status).inc()
-        start.close()
+        val rqBytes = estimateSize(request)
+        val rspBytes = estimateSize(response)
+        rqBytes.foreach(requestSize.labels(method, status).observe)
+        rspBytes.foreach(responseSize.labels(method, status).observe)
+        requestsTotal.labels(method, status).inc()
+        requestTimes.labels(method, status).observe((System.nanoTime() - start).nanos.toMicros)
 
         push(outboundResponse, response)
       }
@@ -79,22 +83,23 @@ object StatsCollectorStage {
   private val requestsInFlight = Gauge.
     build("http_requests_in_flight", "Requests currently in flight").
     register()
-  private val responsesTotal = Counter.
+  private val requestsTotal = Counter.
     build("http_requests_total", "Responses issued by the application").
     labelNames("method", "status").
     register()
   private val requestTimes = Summary.
     build("http_request_duration_microseconds", "Time to response determined").
+    labelNames("method", "status").
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
     register()
   private val responseSize = Summary.
     build("http_response_size_bytes", "Response size (estimated)").
+    labelNames("method", "status").
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
-    labelNames("method", "code").
     register()
   private val requestSize = Summary.
     build("http_request_size_bytes", "Request size (estimated)").
+    labelNames("method", "status").
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
-    labelNames("method", "code").
     register()
 }
