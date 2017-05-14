@@ -95,7 +95,7 @@ object StatsCollectorStage {
     build("http_requests_in_flight", "Requests currently in flight").
     register()
   private val requestsTotal = Counter.
-    build("http_requests_total", "Responses issued by the application").
+    build("http_requests_total", "Requests processed by the application").
     labelNames("method", "status").
     register()
   private val requestTimes = Summary.
