@@ -49,7 +49,7 @@ class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest,
       private def estimateSize(msg: HttpMessage): Option[Double] = {
         val entity = msg.entity()
         val contentLengthOption =
-          if (entity.isKnownEmpty()) Some(0) else entity.contentLengthOption
+          if (entity.isKnownEmpty()) Some(0L) else entity.contentLengthOption
         contentLengthOption map { entitySize =>
           msg.headers.foldLeft(0.0) { (acc, next) =>
             acc + next.name().length + next.value().length + 4 // :, ' ', cr and nl
@@ -88,12 +88,12 @@ object StatsCollectorStage {
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
     register()
   private val responseSize = Summary.
-    build("http_size_bytes", "Response size (estimated)").
+    build("http_response_size_bytes", "Response size (estimated)").
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
     labelNames("method", "code").
     register()
   private val requestSize = Summary.
-    build("http_size_bytes", "Request size (estimated)").
+    build("http_request_size_bytes", "Request size (estimated)").
     quantiles(0.01, 0.05, 0.5, 0.9, 0.95, 0.99).
     labelNames("method", "code").
     register()
