@@ -7,6 +7,17 @@ import io.prometheus.client.{Counter, Gauge, Summary}
 
 import scala.concurrent.duration._
 
+/**
+  * Stage intended to be joined to an akka http handler flow. The types are unchanged,
+  * but on completion of a http request, metrics will be published to the default collector.
+  *
+  * The provided metrics are:
+  * * http_requests_in_flight - gauge - nr of requests currently being processed
+  * * http_requests_total(method, status) - summary - total nr of requests processed
+  * * http_request_duration_microseconds(method, status) - summary - request times
+  * * http_response_size_bytes(method, status) - summary - response bytes
+  * * http_request_size_bytes(method, status) - summary - request bytes
+  */
 class StatsCollectorStage extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
   private val inboundRequest = Inlet[HttpRequest]("rq-in")
   private val outboundRequest = Outlet[HttpRequest]("rq-out")
