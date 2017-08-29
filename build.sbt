@@ -8,9 +8,9 @@ description := """
   |timings, and requests in flight. It additionally optionally
   |exposes some basic akka statistics.""".stripMargin
 
-version := "1.0.0-SNAPSHOT"
+version := "1.0.0"
 
-scalaVersion := "2.12.2"
+scalaVersion := "2.12.3"
 
 scalacOptions := Seq("-deprecation")
 
@@ -20,9 +20,9 @@ publishMavenStyle := true
 
 
 libraryDependencies ++= {
-  val akkaVersion = "2.4.17"
+  val akkaVersion = "2.5.4"
   val prometheusVersion = "0.0.21"
-  val akkaHttpVersion = "10.0.5"
+  val akkaHttpVersion = "10.0.9"
 
   Seq(
     // the actor stuff
