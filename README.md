@@ -14,6 +14,14 @@ Ignifera can be inserted into an existing application very simply:
     Http().bindAndHandle(StatsCollector(myRoutes), "localhost", 8080) foreach { _ =>
       new StandaloneExport(8081).start()
     }
+   
+Altenatively, the metrics route can be included in another routing as follows (Be aware that this will slightly
+modify statics as the metrics requests will be counted in the metrics themselves): 
+    
+    val myRoutes: Route = ???
+    val fullRoutes = myRoutes ~ get(path("metrics")(IncludedHttpExport.statusRoute))
+    Http().bindAndHandle(StatsCollector(fullRoutes), "localhost", 8080)
+       
 
 ## Exported Metrics
 
@@ -25,10 +33,6 @@ status code and headers have been decided.
 ### http_requests_total
 Count  - Requests processed by the application. As above, does not require complete transmission of response data 
 (or even request body, if it is ignored).  
- 
-#### Dimensions
-* method - Http method of the requests
-* status - Response status code
 
 ### http_request_duration_microseconds
 Summary - Time to response determined. The response time is counted from beginning of routing, and internally has the 
@@ -44,15 +48,7 @@ by the routing layer. Depending on the location the stats collection is included
 added by content negotiation. Detection depends on the presence of a `Content-Length` header. Responses lacking this 
 header will not be included in the collected statistics.
 
-#### Dimensions
-* method - Http method of the requests
-* status - Response status code
-
 ### http_request_size_bytes
 Summary - Request size (estimated). Bytes bytes submitted by the client. This includes entity size, and any headers set 
 by the client (including cookies). Detection depends on the presence of a `Content-Length` header. Responses lacking 
 this  header will not be included in the collected statistics.
-
-#### Dimensions
-* method - Http method of the requests
-* status - Response status code

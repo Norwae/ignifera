@@ -23,16 +23,19 @@ class AkkaStats private extends Actor {
 object AkkaStats {
 
   private val deadLetterCount =
-    Counter.build("akka-dead-letters", "Nr of dead letters encountered").create()
+    Counter.build("app_akka_dead_letters", "Nr of dead letters encountered").create()
 
   private val unhandledCount =
-    Counter.build("akka-unhandled-msg", "Nr of unhandled messages in the system").create()
+    Counter.build("akka_unhandled_msg", "Nr of unhandled messages in the system").create()
 
   /**
     * Register the addtional stats. The default implementation will register two additional
     * stats, counting the dead letters and unhandled messages.
     * @param system actor system to observe.
     */
-  def register()(implicit system: ActorSystem): Unit =
+  def register()(implicit system: ActorSystem): Unit = {
     system.actorOf(Props(new AkkaStats))
+    deadLetterCount.register()
+    unhandledCount.register()
+  }
 }

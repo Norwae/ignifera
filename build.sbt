@@ -5,7 +5,7 @@ name := "ignifera"
 description := """
   |Adds promotheus statistics export and collection for
   |akka http routes. The library collects http result codes,
-  |timings, and requests in flight. It additionally optinally
+  |timings, and requests in flight. It additionally optionally
   |exposes some basic akka statistics.""".stripMargin
 
 version := "1.0.0-SNAPSHOT"
@@ -41,7 +41,7 @@ libraryDependencies ++= {
   )
 }
 
-scmInfo := Some(ScmInfo(url("https://github.com/norwae/oriana"), "scm:git:https://github.com/Norwae/oriana.git", Some("scm:git:ssh://git@github.com:Norwae/ignifera.git")))
+scmInfo := Some(ScmInfo(url("https://github.com/norwae/ignifera"), "scm:git:https://github.com/Norwae/ignifera.git", Some("scm:git:ssh://git@github.com:Norwae/ignifera.git")))
 
 pomExtra :=
   Seq(<licenses>
