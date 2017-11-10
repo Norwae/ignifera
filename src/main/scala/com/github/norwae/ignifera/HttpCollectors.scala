@@ -16,7 +16,7 @@ class HttpCollectors(config: Config) {
     register()
   val requestsTotal: Counter = Counter.
     build("http_requests_total", "Requests processed by the application").
-    labelNames("method", "status").
+    labelNames("method", "code").
     register()
   val requestTimes: Summary = quantize(Summary.
     build("http_request_duration_microseconds", "Time to response determined")).
