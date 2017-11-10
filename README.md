@@ -40,7 +40,7 @@ same resolution as the java method `System.nanotime()`
 
 #### Dimensions
 * method - Http method of the requests
-* status - Response status code
+* code - Response status code
 
 ### http_response_size_bytes
 Summary - Response size (estimated). Bytes to be streamed to the client. This includes entity size, and any headers set 
