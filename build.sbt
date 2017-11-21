@@ -8,7 +8,7 @@ description := """
   |timings, and requests in flight. It additionally optionally
   |exposes some basic akka statistics.""".stripMargin
 
-version := "1.0.1-SNAPSHOT"
+version := "1.0.2-SNAPSHOT"
 
 scalaVersion := "2.12.3"
 
