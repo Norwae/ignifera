@@ -1,7 +1,5 @@
 package com.github.norwae.ignifera
 
-import java.util.concurrent.atomic.AtomicInteger
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -100,7 +98,9 @@ class StatsCollectorStageSpec extends FlatSpec with Matchers with BeforeAndAfter
     runRequest(route, 25)
     eventually {
       val afterSample = CollectorRegistry.defaultRegistry.getSampleValue("http_requests_total", Array("method", "status"), Array("GET", "200"))
-      afterSample.intValue() shouldEqual beforeSample.intValue() + 25
+      val diff = afterSample.intValue() - beforeSample.intValue()
+      println(diff)
+      diff shouldEqual 25
     }
   }
 
