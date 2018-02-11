@@ -7,8 +7,8 @@ import com.typesafe.config.Config
 import io.prometheus.client.{Counter, Gauge, Summary}
 
 import scala.collection.JavaConverters._
-
 import scala.concurrent.duration._
+import scala.util.{Failure, Success, Try}
 
 /**
   * Stage intended to be joined to an akka http handler flow. The types are unchanged,
@@ -28,8 +28,10 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
   private val outboundResponse = Outlet[HttpResponse]("rp-out")
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    var inFlightData = Vector.empty[(Long, HttpRequest)]
-    val requestForward = new InHandler with OutHandler {
+    private var inFlightData = Vector.empty[(Long, HttpRequest)]
+    private var upstreamResult: Option[Try[Unit]] = None
+
+    private val requestForward = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val request = grab(inboundRequest)
         collectors.requestsInFlight.inc()
@@ -39,9 +41,13 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
       }
 
       override def onPull(): Unit = pull(inboundRequest)
+
+      override def onUpstreamFinish(): Unit = upstreamResult = Some(Success(()))
+
+      override def onUpstreamFailure(ex: Throwable): Unit = upstreamResult = Some(Failure(ex))
     }
 
-    val responseForward = new InHandler with OutHandler {
+    private val responseForward = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val response = grab(inboundResponse)
         val (start, request) = inFlightData.head
@@ -58,6 +64,10 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
         collectors.requestTimes.observe((System.nanoTime() - start).nanos.toMicros)
 
         push(outboundResponse, response)
+
+        if (upstreamResult.nonEmpty && inFlightData.isEmpty) {
+          upstreamResult.get.fold(failStage, _ ⇒ completeStage)
+        }
       }
 
       override def onPull(): Unit = pull(inboundResponse)

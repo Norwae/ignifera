@@ -21,25 +21,26 @@ object HttpCollectors {
 
   private def quantize(summary: Summary.Builder, config: Config) = quantilesAndError(config).foldLeft(summary)((s, q) ⇒ s.quantile(q,  (1 - q) / 10))
 
-  private lazy val requestsInFlight: Gauge = Gauge.
+  lazy val requestsInFlight: Gauge = Gauge.
     build("http_requests_in_flight", "Requests currently in flight").
     register()
 
-  private lazy val requestsTotal: Counter = Counter.
+  lazy val requestsTotal: Counter = Counter.
     build("http_requests_total", "Requests processed by the application").
     labelNames("method", "code").
     register()
 
-  private lazy val requestTimes: Once[Config, Summary] = new Once( c ⇒
+  lazy val requestTimes: Once[Config, Summary] = new Once( c ⇒
     quantize(Summary.
       build("http_request_duration_microseconds", "Time to response determined"), c).
       register()
   )
 
-  private lazy val responseSize: Once[Config, Summary] = new Once( c ⇒
+  lazy val responseSize: Once[Config, Summary] = new Once( c ⇒
       quantize(Summary.build("http_response_size_bytes", "Response size (estimated)"), c).
       register())
-  private lazy val requestSize: Once[Config, Summary] = new Once( c ⇒
+
+  lazy val requestSize: Once[Config, Summary] = new Once( c ⇒
     quantize(Summary.
     build("http_request_size_bytes", "Request size (estimated)"), c).
     register())
