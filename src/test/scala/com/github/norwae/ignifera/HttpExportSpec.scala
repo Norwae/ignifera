@@ -30,7 +30,7 @@ class HttpExportSpec extends FlatSpec with Matchers {
     val reply = new HttpExport {}.exportReply
     val entity = reply.entity.asInstanceOf[HttpEntity.Strict]
     val string = entity.data.utf8String
-    string should containSubstring("process_cpu_seconds_total")
+
     string should containSubstring("jvm_classes_loaded")
   }
 

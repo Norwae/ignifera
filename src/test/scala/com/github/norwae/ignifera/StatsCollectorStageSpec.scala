@@ -1,7 +1,5 @@
 package com.github.norwae.ignifera
 
-import java.util.concurrent.atomic.AtomicInteger
-
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -16,7 +14,7 @@ import org.scalatest.concurrent.Eventually
 import org.scalatest.time.{Milliseconds, Seconds, Span}
 
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Promise}
+import scala.concurrent.{Await, Future, Promise}
 
 class StatsCollectorStageSpec extends FlatSpec with Matchers with BeforeAndAfterEach with BeforeAndAfterAll with Eventually {
   implicit val actorSystem: ActorSystem = ActorSystem("unittest")
@@ -92,16 +90,16 @@ class StatsCollectorStageSpec extends FlatSpec with Matchers with BeforeAndAfter
   }
 
   it should "track of responses begun" in {
-    val beforeSample = CollectorRegistry.defaultRegistry.getSampleValue("http_requests_total", Array("method", "status"), Array("GET", "200"))
+    val beforeSample = CollectorRegistry.defaultRegistry.getSampleValue("http_requests_total", Array("method", "code"), Array("GET", "200"))
     val route = Directives.get {
       Directives.complete("Hello World")
     }
 
-    runRequest(route, 25)
-    eventually {
-      val afterSample = CollectorRegistry.defaultRegistry.getSampleValue("http_requests_total", Array("method", "status"), Array("GET", "200"))
-      afterSample.intValue() shouldEqual beforeSample.intValue() + 25
-    }
+    Await.result(runRequest(route, 25), Duration.Inf)
+
+    val afterSample = CollectorRegistry.defaultRegistry.getSampleValue("http_requests_total", Array("method", "code"), Array("GET", "200"))
+    val diff = afterSample.intValue() - beforeSample.intValue()
+    diff shouldEqual 25
   }
 
   private def simpleBuild(port: Int) = Get(s"http://localhost:$port/")
@@ -112,14 +110,10 @@ class StatsCollectorStageSpec extends FlatSpec with Matchers with BeforeAndAfter
 
     val futures = for (_ <- 0 until count) yield {
       val rq = requestBuilder(srv.localAddress.getPort)
-      Http().singleRequest(rq).map(_.discardEntityBytes().future())
+      Http().singleRequest(rq).flatMap(_.discardEntityBytes().future())
     }
 
-    futures.last andThen {
-      case _ => srv.unbind()
-    }
-
-    futures
+    Future.sequence(futures) flatMap (_ => srv.unbind())
   }
 
   override protected def afterAll(): Unit = Await.ready(actorSystem.terminate(), Duration.Inf)
