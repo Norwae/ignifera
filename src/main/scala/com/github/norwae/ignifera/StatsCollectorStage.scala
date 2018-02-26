@@ -66,7 +66,10 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
         push(outboundResponse, response)
 
         if (upstreamResult.nonEmpty && inFlightData.isEmpty) {
-          upstreamResult.get.fold(failStage, _ ⇒ completeStage)
+          upstreamResult.get match {
+            case Success(_) ⇒ completeStage()
+            case Failure(e) ⇒ failStage(e)
+          }
         }
       }
 
