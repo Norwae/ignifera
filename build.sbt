@@ -8,7 +8,7 @@ description := """
   |timings, and requests in flight. It additionally optionally
   |exposes some basic akka statistics.""".stripMargin
 
-version := "1.0.2"
+version := "1.0.3-SNAPSHOT"
 
 scalaVersion := "2.12.4"
 
@@ -42,6 +42,14 @@ libraryDependencies ++= {
 }
 
 scmInfo := Some(ScmInfo(url("https://github.com/norwae/ignifera"), "scm:git:https://github.com/Norwae/ignifera.git", Some("scm:git:ssh://git@github.com:Norwae/ignifera.git")))
+
+publishTo := {
+  val nexus = "https://oss.sonatype.org/"
+  if (isSnapshot.value)
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  else
+    Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+}
 
 pomExtra :=
   Seq(<licenses>
