@@ -3,7 +3,7 @@ package com.github.norwae.ignifera
 import akka.Done
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import com.github.norwae.ignifera.HealthCheckType.{Health, Readiness, RequestShutdown}
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
@@ -13,7 +13,7 @@ import scala.concurrent.duration._
 
 class HealthFlowSpec extends FlatSpec with Matchers with BeforeAndAfterAll {
   implicit val actorSystem: ActorSystem = ActorSystem("unittest")
-  implicit val mat = ActorMaterializer()
+  implicit val mat: Materializer = ActorMaterializer()
 
   "The health check" should "return 204 on a GET /health" in {
     val sut = new DefaultHealthFlow(() ⇒ Future.failed(new NoSuchElementException), () ⇒ ())

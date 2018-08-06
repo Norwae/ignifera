@@ -88,8 +88,8 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
       }
 
       override def onPull(): Unit = {
-        if (!hasBeenPulled(appIn)) pull(appIn)
-        if (!hasBeenPulled(healthIn)) pull(healthIn)
+        if (!isClosed(appIn) && !hasBeenPulled(appIn)) pull(appIn)
+        if (!isClosed(healthIn) && !hasBeenPulled(healthIn)) pull(healthIn)
       }
 
       override def onUpstreamFinish(): Unit = if (isClosed(appIn) && isClosed(healthIn)) completeStage()
