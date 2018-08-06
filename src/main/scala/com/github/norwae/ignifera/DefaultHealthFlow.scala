@@ -5,40 +5,42 @@ import akka.http.scaladsl.model.{HttpResponse, StatusCode, StatusCodes}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]]{
   private val in = Inlet[HealthCheckType]("in")
   private val out = Outlet[HttpResponse]("out")
 
+  def badStatus: StatusCode = StatusCodes.InternalServerError
+  def goodStatus: StatusCode = StatusCodes.NoContent
+
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) with InHandler with OutHandler {
     private var pending = false
     private var shutdown = false
 
-    private implicit def ec = materializer.executionContext
+    private implicit def ec: ExecutionContext = materializer.executionContext
 
-    private def provideResponse(code: StatusCode) = {
+    private def provideResponse(code: StatusCode): Unit = {
       pending = false
       maybeShutdown()
     }
 
-    private def maybeShutdown() = {
+    private def maybeShutdown(): Unit = {
       if (!pending && isClosed(in)) completeStage()
     }
 
     private val asyncProvideResponse = getAsyncCallback(provideResponse)
-
     override def onPush(): Unit = {
       pending = true
       grab(in) match {
-        case HealthCheckType.Health ⇒ provideResponse(StatusCodes.NoContent)
+        case HealthCheckType.Health ⇒ provideResponse(goodStatus)
         case HealthCheckType.RequestShutdown if !shutdown ⇒
           shutdown = true
-          provideResponse(StatusCodes.NoContent)
+          provideResponse(goodStatus)
           Future(onShutdown())
         case HealthCheckType.Readiness if !shutdown ⇒
-          readiness() andThen PartialFunction(r ⇒ asyncProvideResponse.invoke(if (r.isSuccess) StatusCodes.NoContent else StatusCodes.InternalServerError))
-        case _ ⇒ provideResponse(StatusCodes.InternalServerError)
+          readiness() andThen PartialFunction(r ⇒ asyncProvideResponse.invoke(if (r.isSuccess) goodStatus else badStatus))
+        case _ ⇒ provideResponse(badStatus)
       }
     }
 
