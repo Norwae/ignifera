@@ -26,7 +26,7 @@ object AkkaStats {
     Counter.build("app_akka_dead_letters", "Nr of dead letters encountered").create()
 
   private val unhandledCount =
-    Counter.build("akka_unhandled_msg", "Nr of unhandled messages in the system").create()
+    Counter.build("app_akka_unhandled_msg", "Nr of unhandled messages in the system").create()
 
   /**
     * Register the addtional stats. The default implementation will register two additional
