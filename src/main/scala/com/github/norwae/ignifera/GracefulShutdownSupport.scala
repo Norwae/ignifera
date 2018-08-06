@@ -42,8 +42,8 @@ object GracefulShutdownSupport {
     GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(onReadyHandler, onShutdownHandler)), flow)
   }
 
-  def apply[A](healthFlow: Flow[HealthCheckType, HttpResponse, Any], loadFlow: Flow[HttpRequest, HttpResponse, A]): Flow[HttpRequest, HttpResponse, A] = {
-    Flow.fromGraph(GraphDSL.create(loadFlow) { implicit b ⇒
+  def apply[A](healthFlow: Flow[HealthCheckType, HttpResponse, Any], applicationFlow: Flow[HttpRequest, HttpResponse, A]): Flow[HttpRequest, HttpResponse, A] = {
+    Flow.fromGraph(GraphDSL.create(applicationFlow) { implicit b ⇒
       app ⇒
         val coordinator = b add new GracefulShutdownSupport
         val health = b add healthFlow
@@ -81,7 +81,6 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
     def unapply(uri: Uri): Boolean = uri.path == Path / "health" / "readiness"
   }
 
-
   override def shape = new GSSShape(
     requestIn, responseOut,
     appIn, appOut,
@@ -91,25 +90,21 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
     private var requestPending = false
 
-    def pullRequestIfReady() = {
+    private def pullRequestIfReady(): Unit = {
       if (!requestPending && isAvailable(appOut) && isAvailable(healthOut) && !hasBeenPulled(requestIn)) {
         pull(requestIn)
       }
     }
 
-    private def routeRequest(rq: HttpRequest): Unit = {
-      rq match {
-        case HttpRequest(GET, HealthUri(), _, _, _) ⇒ push(healthOut, Health)
-        case HttpRequest(GET, ReadinessUri(), _, _, _) ⇒ push(healthOut, Readiness)
-        case HttpRequest(DELETE, ReadinessUri(), _, _, _) ⇒ push(healthOut, RequestShutdown)
-        case other ⇒ push(appOut, other)
-      }
-    }
-
-    private val inHandler: InHandler = new InHandler {
+    private val requestInputHandler: InHandler = new InHandler {
       override def onPush(): Unit = {
         requestPending = true
-        routeRequest(grab(requestIn))
+        grab(requestIn) match {
+          case HttpRequest(GET, HealthUri(), _, _, _) ⇒ push(healthOut, Health)
+          case HttpRequest(GET, ReadinessUri(), _, _, _) ⇒ push(healthOut, Readiness)
+          case HttpRequest(DELETE, ReadinessUri(), _, _, _) ⇒ push(healthOut, RequestShutdown)
+          case other ⇒ push(appOut, other)
+        }
       }
 
       override def onUpstreamFinish(): Unit = {
@@ -129,11 +124,11 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
       }
     }
 
-    val outHandler: OutHandler = () ⇒ pullRequestIfReady()
+    val responseOutputHandler: OutHandler = () ⇒ pullRequestIfReady()
 
-    setHandler(requestIn, inHandler)
-    setHandler(appOut, outHandler)
-    setHandler(healthOut, outHandler)
+    setHandler(requestIn, requestInputHandler)
+    setHandler(appOut, responseOutputHandler)
+    setHandler(healthOut, responseOutputHandler)
     setHandler(appIn, outputForwardHandler(appIn))
     setHandler(healthIn, outputForwardHandler(healthIn))
 
@@ -142,7 +137,5 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
       if (!hasBeenPulled(appIn)) tryPull(appIn)
       pullRequestIfReady()
     })
-
-
   }
 }
