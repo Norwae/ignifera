@@ -1,5 +1,6 @@
 package com.github.norwae.ignifera
 
+import akka.http.scaladsl.model.HttpMethods.{DELETE, GET}
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
 import akka.stream._
@@ -7,14 +8,16 @@ import akka.stream.scaladsl.{Flow, GraphDSL}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.{Done, stream}
 import com.github.norwae.ignifera.GracefulShutdownSupport.GSSShape
+import com.github.norwae.ignifera.HealthCheckType.{Health, Readiness, RequestShutdown}
 
 import scala.collection.immutable
 import scala.concurrent.Future
 
 object GracefulShutdownSupport {
+
   class GSSShape(val mainIn: Inlet[HttpRequest], val mainOut: Outlet[HttpResponse],
-    val appIn: Inlet[HttpResponse], val appOut: Outlet[HttpRequest],
-    val healthIn: Inlet[HttpResponse], val healthOut: Outlet[HealthCheckType]) extends stream.Shape {
+                 val appIn: Inlet[HttpResponse], val appOut: Outlet[HttpRequest],
+                 val healthIn: Inlet[HttpResponse], val healthOut: Outlet[HealthCheckType]) extends stream.Shape {
 
     override def inlets: immutable.Seq[Inlet[_]] = List(mainIn, appIn, healthIn)
 
@@ -29,32 +32,36 @@ object GracefulShutdownSupport {
 
 
   def noReadyCheck(): Future[Done] = Future.successful(Done)
+
   def noShutdownHandler(): Unit = ()
+
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A],
-               onReadyHandler: () ⇒ Future[Done] = noReadyCheck _,
-               onShutdownHandler: () ⇒ Unit = noShutdownHandler _
+               onReadyHandler: () ⇒ Future[Done] = noReadyCheck,
+               onShutdownHandler: () ⇒ Unit = noShutdownHandler
               ): Flow[HttpRequest, HttpResponse, A] = {
     GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(onReadyHandler, onShutdownHandler)), flow)
   }
 
   def apply[A](healthFlow: Flow[HealthCheckType, HttpResponse, Any], loadFlow: Flow[HttpRequest, HttpResponse, A]): Flow[HttpRequest, HttpResponse, A] = {
-    Flow.fromGraph(GraphDSL.create(loadFlow) { implicit b ⇒ app ⇒
-      val coordinator = b add new GracefulShutdownSupport
-      val health = b add healthFlow
-      import GraphDSL.Implicits._
+    Flow.fromGraph(GraphDSL.create(loadFlow) { implicit b ⇒
+      app ⇒
+        val coordinator = b add new GracefulShutdownSupport
+        val health = b add healthFlow
+        import GraphDSL.Implicits._
 
-      coordinator.healthOut ~> health
-      coordinator.healthIn <~ health
+        coordinator.healthOut ~> health
+        coordinator.healthIn <~ health
 
-      coordinator.appOut ~> app
-      coordinator.appIn <~ app
+        coordinator.appOut ~> app
+        coordinator.appIn <~ app
 
-      FlowShape(coordinator.mainIn, coordinator.mainOut)
+        FlowShape(coordinator.mainIn, coordinator.mainOut)
     })
   }
 }
 
 class GracefulShutdownSupport extends GraphStage[GSSShape] {
+
   import GracefulShutdownSupport.GSSShape
 
   private val requestIn = Inlet[HttpRequest]("requestIn")
@@ -82,45 +89,60 @@ class GracefulShutdownSupport extends GraphStage[GSSShape] {
   )
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private val responseHandler = new InHandler with OutHandler {
-      override def onPush(): Unit = {
-        push(responseOut, grab(if (isAvailable(appIn)) appIn else healthIn))
-      }
+    private var requestPending = false
 
-      override def onPull(): Unit = {
-        if (!isClosed(appIn) && !hasBeenPulled(appIn)) pull(appIn)
-        if (!isClosed(healthIn) && !hasBeenPulled(healthIn)) pull(healthIn)
+    def pullRequestIfReady() = {
+      if (!requestPending && isAvailable(appOut) && isAvailable(healthOut) && !hasBeenPulled(requestIn)) {
+        pull(requestIn)
       }
-
-      override def onUpstreamFinish(): Unit = if (isClosed(appIn) && isClosed(healthIn)) completeStage()
     }
 
-    private val requestHandler = new InHandler with OutHandler {
-      import akka.http.scaladsl.model.HttpMethods._
-      import HealthCheckType._
-
-      override def onPush(): Unit = grab(requestIn) match {
+    private def routeRequest(rq: HttpRequest): Unit = {
+      rq match {
         case HttpRequest(GET, HealthUri(), _, _, _) ⇒ push(healthOut, Health)
-        case HttpRequest(GET, ReadinessUri(), _ , _, _) ⇒ push(healthOut, Readiness)
+        case HttpRequest(GET, ReadinessUri(), _, _, _) ⇒ push(healthOut, Readiness)
         case HttpRequest(DELETE, ReadinessUri(), _, _, _) ⇒ push(healthOut, RequestShutdown)
         case other ⇒ push(appOut, other)
       }
+    }
 
+    private val inHandler: InHandler = new InHandler {
+      override def onPush(): Unit = {
+        requestPending = true
+        routeRequest(grab(requestIn))
+      }
 
       override def onUpstreamFinish(): Unit = {
         complete(healthOut)
         complete(appOut)
       }
-
-      override def onPull(): Unit = if (isAvailable(healthOut) && isAvailable(appOut)) pull(requestIn)
     }
 
-    setHandler(responseOut, responseHandler)
-    setHandler(appIn, responseHandler)
-    setHandler(healthIn, responseHandler)
+    private def outputForwardHandler(in: Inlet[HttpResponse]) = new InHandler {
+      override def onPush(): Unit = {
+        push(responseOut, grab(in))
+        requestPending = false
+      }
 
-    setHandler(requestIn, requestHandler)
-    setHandler(appOut, requestHandler)
-    setHandler(healthOut, requestHandler)
+      override def onUpstreamFinish(): Unit = {
+        if (isClosed(appIn) && isClosed(healthIn)) completeStage()
+      }
+    }
+
+    val outHandler: OutHandler = () ⇒ pullRequestIfReady()
+
+    setHandler(requestIn, inHandler)
+    setHandler(appOut, outHandler)
+    setHandler(healthOut, outHandler)
+    setHandler(appIn, outputForwardHandler(appIn))
+    setHandler(healthIn, outputForwardHandler(healthIn))
+
+    setHandler(responseOut, () ⇒ {
+      if (!hasBeenPulled(healthIn)) tryPull(healthIn)
+      if (!hasBeenPulled(appIn)) tryPull(appIn)
+      pullRequestIfReady()
+    })
+
+
   }
 }
