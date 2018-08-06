@@ -21,6 +21,7 @@ class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit)
     private implicit def ec: ExecutionContext = materializer.executionContext
 
     private def provideResponse(code: StatusCode): Unit = {
+      push(out, HttpResponse(code))
       pending = false
       maybeShutdown()
     }
@@ -30,9 +31,11 @@ class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit)
     }
 
     private val asyncProvideResponse = getAsyncCallback(provideResponse)
+
     override def onPush(): Unit = {
       pending = true
-      grab(in) match {
+      val checkType = grab(in)
+      checkType match {
         case HealthCheckType.Health ⇒ provideResponse(goodStatus)
         case HealthCheckType.RequestShutdown if !shutdown ⇒
           shutdown = true
