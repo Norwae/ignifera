@@ -2,29 +2,42 @@ import sbt.Keys.description
 
 inThisBuild(Seq(
   organization := "com.github.norwae",
-  version := "1.0.3-SNAPSHOT",
+  version := "1.1.0-SNAPSHOT",
   scalaVersion := "2.12.6",
 ))
 
 lazy val bench = project in file("benchmarks") settings(
   name := "ignifera-benchmarks"
-) enablePlugins JmhPlugin
+) enablePlugins JmhPlugin dependsOn main
 
 lazy val main = project in file(".") settings(
   name := "ignifera",
   description :=
     """
-      |Adds promotheus statistics export and collection for
+      |Adds deployment support for akka-http applications in kubernetes.
+      |The facilities are:
+      |
+      |1) promotheus statistics export and collection for
       |akka http routes. The library collects http result codes,
       |timings, and requests in flight. It additionally optionally
-      |exposes some basic akka statistics.""".stripMargin,
+      |exposes some basic akka statistics.
+      |
+      |2) Graceful shutdown, health and readiness functions. These routes
+      |are provided at a low level to they can be used by both the routing
+      |DSL and special case implementations.
+      |
+      |3) Access log collection.
+      |
+      |These functions can be freely composed to (e.g.) exclude health check
+      |routes from statistics and access log, or include them, depending
+      |on the requirements and standards of the user""".stripMargin,
   scalacOptions := Seq("-deprecation"),
   crossScalaVersions := Seq("2.11.8"),
   publishMavenStyle := true,
   libraryDependencies ++= {
-    val akkaVersion = "2.5.4"
+    val akkaVersion = "2.5.14"
     val prometheusVersion = "0.0.21"
-    val akkaHttpVersion = "10.0.9"
+    val akkaHttpVersion = "10.1.3"
 
     Seq(
       // the actor stuff

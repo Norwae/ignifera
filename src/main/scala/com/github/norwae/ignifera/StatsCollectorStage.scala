@@ -1,14 +1,11 @@
 package com.github.norwae.ignifera
 
-import akka.http.scaladsl.model.{HttpMessage, HttpRequest, HttpResponse}
+import akka.http.scaladsl.model.{HttpMessage, HttpMethod, HttpRequest, HttpResponse}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, BidiShape, Inlet, Outlet}
-import com.typesafe.config.Config
-import io.prometheus.client.{Counter, Gauge, Summary}
 
-import scala.collection.JavaConverters._
+import scala.collection.immutable.Queue
 import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
 
 /**
   * Stage intended to be joined to an akka http handler flow. The types are unchanged,
@@ -27,64 +24,57 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
   private val inboundResponse = Inlet[HttpResponse]("rp-in")
   private val outboundResponse = Outlet[HttpResponse]("rp-out")
 
-  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-    private var inFlightData = Vector.empty[(Long, HttpRequest)]
-    private var upstreamResult: Option[Try[Unit]] = None
+  final case class RequestData(method: HttpMethod, start: Long)
 
-    private val requestForward = new InHandler with OutHandler {
+  private def estimateSize(msg: HttpMessage): Option[Double] = {
+    val entity = msg.entity()
+    val contentLengthOption =
+      if (entity.isKnownEmpty()) Some(0L) else entity.contentLengthOption
+    contentLengthOption map { entitySize =>
+      msg.headers.foldLeft(entitySize) { (acc, next) =>
+        acc + next.name().length + next.value().length + 4 // :, ' ', cr and nl
+      }.toDouble
+    }
+  }
+
+  override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+    private var inFlightData = Queue.empty[RequestData]
+
+    private val requestForward: InHandler with OutHandler = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val request = grab(inboundRequest)
         collectors.requestsInFlight.inc()
-        inFlightData = inFlightData :+ (System.nanoTime(), request)
+
+        val rqBytes = estimateSize(request)
+        rqBytes.foreach(collectors.requestSize.observe)
+        inFlightData = inFlightData :+ RequestData(request.method, System.nanoTime())
 
         push(outboundRequest, request)
       }
 
       override def onPull(): Unit = pull(inboundRequest)
 
-      override def onUpstreamFinish(): Unit = upstreamResult = Some(Success(()))
-
-      override def onUpstreamFailure(ex: Throwable): Unit = upstreamResult = Some(Failure(ex))
+      override def onUpstreamFinish(): Unit = complete(outboundRequest)
     }
 
-    private val responseForward = new InHandler with OutHandler {
+    private val responseForward: InHandler with OutHandler = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val response = grab(inboundResponse)
-        val (start, request) = inFlightData.head
-        val method = request.method.value
+        val RequestData(method, start) = inFlightData.head
+
         val status = response.status.intValue().toString
         inFlightData = inFlightData.tail
 
         collectors.requestsInFlight.dec()
-        val rqBytes = estimateSize(request)
         val rspBytes = estimateSize(response)
-        rqBytes.foreach(collectors.requestSize.observe)
         rspBytes.foreach(collectors.responseSize.observe)
-        collectors.requestsTotal.labels(method, status).inc()
+        collectors.requestsTotal.labels(method.value, status).inc()
         collectors.requestTimes.observe((System.nanoTime() - start).nanos.toMicros)
 
         push(outboundResponse, response)
-
-        if (upstreamResult.nonEmpty && inFlightData.isEmpty) {
-          upstreamResult.get match {
-            case Success(_) ⇒ completeStage()
-            case Failure(e) ⇒ failStage(e)
-          }
-        }
       }
 
       override def onPull(): Unit = pull(inboundResponse)
-
-      private def estimateSize(msg: HttpMessage): Option[Double] = {
-        val entity = msg.entity()
-        val contentLengthOption =
-          if (entity.isKnownEmpty()) Some(0L) else entity.contentLengthOption
-        contentLengthOption map { entitySize =>
-          msg.headers.foldLeft(0.0) { (acc, next) =>
-            acc + next.name().length + next.value().length + 4 // :, ' ', cr and nl
-          } + entitySize
-        }
-      }
     }
 
     setHandler(inboundRequest, requestForward)
