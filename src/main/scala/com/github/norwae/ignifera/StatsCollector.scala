@@ -14,6 +14,12 @@ object StatsCollector {
     apply(flow, new HttpCollectors(ConfigFactory.empty()))
 
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A], collectors: HttpCollectors): Flow[HttpRequest, HttpResponse, A] =
-    BidiFlow.fromGraph(new StatsCollectorStage(collectors)).joinMat(flow)(Keep.right)
+    apply(flow, new PrometheusStatisticsListener(collectors))
+
+  def apply[A](flow: Flow[HttpRequest, HttpResponse, A], listeners: HttpEventListener*): Flow[HttpRequest, HttpResponse, A] =
+    BidiFlow.
+      fromGraph(new StatsCollectorStage(listeners)).
+      joinMat(flow)(Keep.right)
+
 
 }

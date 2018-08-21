@@ -1,6 +1,6 @@
 package com.github.norwae.ignifera
 
-import akka.http.scaladsl.model.{HttpMessage, HttpMethod, HttpRequest, HttpResponse}
+import akka.http.scaladsl.model._
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, BidiShape, Inlet, Outlet}
 
@@ -18,22 +18,22 @@ import scala.concurrent.duration._
   * * http_response_size_bytes - summary - response bytes
   * * http_request_size_bytes - summary - request bytes
   */
-class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
+class StatsCollectorStage(observers: Seq[HttpEventListener]) extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
   private val inboundRequest = Inlet[HttpRequest]("rq-in")
   private val outboundRequest = Outlet[HttpRequest]("rq-out")
   private val inboundResponse = Inlet[HttpResponse]("rp-in")
   private val outboundResponse = Outlet[HttpResponse]("rp-out")
 
-  final case class RequestData(method: HttpMethod, start: Long)
+  final case class RequestData(method: HttpMethod, uri: Uri, requestSize: Option[Long], start: Long)
 
-  private def estimateSize(msg: HttpMessage): Option[Double] = {
+  private def estimateSize(msg: HttpMessage): Option[Long] = {
     val entity = msg.entity()
     val contentLengthOption =
       if (entity.isKnownEmpty()) Some(0L) else entity.contentLengthOption
     contentLengthOption map { entitySize =>
       msg.headers.foldLeft(entitySize) { (acc, next) =>
         acc + next.name().length + next.value().length + 4 // :, ' ', cr and nl
-      }.toDouble
+      }
     }
   }
 
@@ -43,11 +43,9 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
     private val requestForward: InHandler with OutHandler = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val request = grab(inboundRequest)
-        collectors.requestsInFlight.inc()
+        observers.foreach(_.onRequestStart())
 
-        val rqBytes = estimateSize(request)
-        rqBytes.foreach(collectors.requestSize.observe)
-        inFlightData = inFlightData :+ RequestData(request.method, System.nanoTime())
+        inFlightData = inFlightData :+ RequestData(request.method, request.uri, estimateSize(request), System.nanoTime())
 
         push(outboundRequest, request)
       }
@@ -60,17 +58,12 @@ class StatsCollectorStage(collectors: HttpCollectors) extends GraphStage[BidiSha
     private val responseForward: InHandler with OutHandler = new InHandler with OutHandler {
       override def onPush(): Unit = {
         val response = grab(inboundResponse)
-        val RequestData(method, start) = inFlightData.head
-
-        val status = response.status.intValue().toString
+        val respSize = estimateSize(response)
+        val RequestData(method, uri, rqSize, start) = inFlightData.head
+        val time = (System.nanoTime() - start).nanos
         inFlightData = inFlightData.tail
 
-        collectors.requestsInFlight.dec()
-        val rspBytes = estimateSize(response)
-        rspBytes.foreach(collectors.responseSize.observe)
-        collectors.requestsTotal.labels(method.value, status).inc()
-        collectors.requestTimes.observe((System.nanoTime() - start).nanos.toMicros)
-
+        observers.foreach(_.onRequestEnd(method, uri, rqSize, response.status, respSize, time))
         push(outboundResponse, response)
       }
 

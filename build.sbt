@@ -51,6 +51,9 @@ lazy val main = project in file(".") settings(
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "io.prometheus" % "simpleclient_common" % prometheusVersion,
 
+      // slf4j for access logs
+      "org.slf4j" % "slf4j-api" % "1.7.25",
+
       // testing dependencies
       "org.scalatest" %% "scalatest" % "3.0.1" % "test"
     )
