@@ -15,6 +15,31 @@ import scala.concurrent.Future
 
 object GracefulShutdownSupport {
 
+  /**
+    * The rather peculiar shape of the graceful shutdown stage. It consists of
+    * three inlets and outlets.
+    *
+    * {{{
+    *             +------+
+    *   mainIn ~> |      | ~> healthOut
+    *             |      | <~ healthIn
+    *             | GSS  |
+    *             |      | ~> appOut
+    *  mainOut <~ |      | <~ appIn
+    *             +------+
+    * }}}
+    *
+    * Conceptually, the healthOut and healthIn should be connected to a flow
+    * handling the health requests, and the appOut and appIn connected
+    * to a flow handling the main application logic.
+    *
+    * @param mainIn request input
+    * @param mainOut response output
+    * @param appIn application responses
+    * @param appOut application requests
+    * @param healthIn health responses
+    * @param healthOut health requests
+    */
   class GSSShape(val mainIn: Inlet[HttpRequest], val mainOut: Outlet[HttpResponse],
                  val appIn: Inlet[HttpResponse], val appOut: Outlet[HttpRequest],
                  val healthIn: Inlet[HttpResponse], val healthOut: Outlet[HealthCheckType]) extends stream.Shape {
@@ -31,10 +56,22 @@ object GracefulShutdownSupport {
   }
 
 
+  /** do not perform a deep readiness check */
   def noReadyCheck(): Future[Done] = Future.successful(Done)
 
+  /** do no explicit shutdown handling, just wait for requests to drain */
   def noShutdownHandler(): Unit = ()
 
+  /** construct a new graceful shutdown stage. The health flow will be provided
+    * by a [[DefaultHealthFlow]]. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]
+    * will remain unconnected and provide the open ports of the stage.
+    *
+    * @param flow main application flow
+    * @param onReadyHandler readiness callback. Defaults to [[noReadyCheck()]]
+    * @param onShutdownHandler shutdown handler. Defaults to [[noShutdownHandler()]]
+    * @tparam A materialized value of the inner flow
+    * @return adapted flow
+    */
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A],
                onReadyHandler: () ⇒ Future[Done] = noReadyCheck,
                onShutdownHandler: () ⇒ Unit = noShutdownHandler
@@ -42,6 +79,14 @@ object GracefulShutdownSupport {
     GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(onReadyHandler, onShutdownHandler)), flow)
   }
 
+  /** construct a new graceful shutdown stage. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]
+    * will remain unconnected and provide the open ports of the stage.
+    *
+    * @param healthFlow flow to provide health check
+    * @param applicationFlow flow providing the main application logic
+    * @tparam A materialized value type
+    * @return adapted flow
+    */
   def apply[A](healthFlow: Flow[HealthCheckType, HttpResponse, Any], applicationFlow: Flow[HttpRequest, HttpResponse, A]): Flow[HttpRequest, HttpResponse, A] = {
     Flow.fromGraph(GraphDSL.create(applicationFlow) { implicit b ⇒
       app ⇒
@@ -60,6 +105,11 @@ object GracefulShutdownSupport {
   }
 }
 
+/**
+  * Provides graceful shutdown support by forking off the `/health` and `/health/readiness`
+  * routes towards a dedicated handler flow, and passing all other traffic to the main
+  * flow.
+  */
 class GracefulShutdownSupport extends GraphStage[GSSShape] {
 
   import GracefulShutdownSupport.GSSShape

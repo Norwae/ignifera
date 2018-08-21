@@ -10,12 +10,32 @@ import com.typesafe.config.{Config, ConfigFactory}
   * stats collector that automatically collects prometheus metrics.
   */
 object StatsCollector {
+  /**
+    * creates a stats collector reporting to [[PrometheusStatisticsListener]] with default config
+    * @param flow application flow
+    * @tparam A materialized value
+    * @return wrapped flow
+    */
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A]): Flow[HttpRequest, HttpResponse, A] =
     apply(flow, new HttpCollectors(ConfigFactory.empty()))
 
+  /**
+    * creates a stats collector reporting to [[PrometheusStatisticsListener]] with the provided collectors
+    * @param flow application flow
+    * @param collectors http collector
+    * @tparam A materialized value
+    * @return wrapped flow
+    */
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A], collectors: HttpCollectors): Flow[HttpRequest, HttpResponse, A] =
     apply(flow, new PrometheusStatisticsListener(collectors))
 
+  /**
+    * creates a stats collector reporting to the specified listeners
+    * @param flow application flow
+    * @param listeners listeners to inform on requests
+    * @tparam A materialized value
+    * @return wrapped flow
+    */
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A], listeners: HttpEventListener*): Flow[HttpRequest, HttpResponse, A] =
     BidiFlow.
       fromGraph(new StatsCollectorStage(listeners)).

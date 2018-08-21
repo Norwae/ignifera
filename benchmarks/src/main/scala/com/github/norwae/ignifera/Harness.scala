@@ -28,7 +28,7 @@ class Harness(transformer: Flow[HttpRequest, HttpResponse, Any] ⇒ Flow[HttpReq
     system = ActorSystem(UUID.randomUUID().toString)
     mat = ActorMaterializer()
 
-    val inner = transformer(Flow[HttpRequest].map { in: HttpRequest ⇒
+    val inner = transformer(Flow[HttpRequest].map { _ ⇒
       Blackhole.consumeCPU(1000)
       HttpResponse(StatusCodes.NotFound)
     })

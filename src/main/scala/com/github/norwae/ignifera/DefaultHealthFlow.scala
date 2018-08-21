@@ -6,7 +6,19 @@ import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 
 import scala.concurrent.{ExecutionContext, Future}
+import scala.util.Try
 
+/**
+  * Default implementation for health / graceful shutdown handling. The
+  * `/health` route always returns `204`, the `/health/readiness` route
+  * invokes a callback, and returns depending on success or failure.
+  *
+  * Receiving a [[HealthCheckType.RequestShutdown]] causes the
+  * `/health/readiness` to always return 500.
+  *
+  * @param readiness readiness callback
+  * @param onShutdown shutdown callback
+  */
 class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]]{
   private val in = Inlet[HealthCheckType]("in")
   private val out = Outlet[HttpResponse]("out")

@@ -4,8 +4,20 @@ import io.prometheus.client.Summary
 
 import scala.concurrent.duration.FiniteDuration
 
+/**
+  * Listener to export statistics to prometheus
+  *
+  * The provided metrics are:
+  * * http_requests_in_flight - gauge - nr of requests currently being processed
+  * * http_requests_total(method, status) - summary - total nr of requests processed
+  * * http_request_duration_microseconds - summary - request times
+  * * http_response_size_bytes - summary - response bytes
+  * * http_request_size_bytes - summary - request bytes
+  * @param collectors collector object
+  */
 class PrometheusStatisticsListener(collectors: HttpCollectors) extends HttpEventListener {
   import collectors._
+
   override def onRequestStart(): Unit = {
     requestsInFlight.inc()
   }
