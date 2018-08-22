@@ -1,7 +1,20 @@
 # Ignifera
 
-Ignifera is an exporter of [akka-http](http://akka.io) statistics for [Prometheus](https://prometheus.io/). The 
-exporter exposes either an endpoint of its own, or can be integrated into the routing directive.
+1) [Prometheus](https://prometheus.io/) statistics export and collection for
+akka http routes. The library collects http result codes,
+timings, and requests in flight. It additionally optionally
+exposes some basic akka statistics.
+
+2) [Graceful shutdown](https://blog.risingstack.com/graceful-shutdown-node-js-kubernetes/), health and readiness 
+functions. These routes are provided at a low level to they can be used by both the routing
+DSL and special case implementations.
+
+3) Access log collection.
+
+These functions can be freely composed to (e.g.) exclude health check
+routes from statistics and access log, or include them, depending
+on the requirements and standards of the user
+
   
 ## Features
 
@@ -11,17 +24,20 @@ Ignifera can be inserted into an existing application very simply:
     
     val myRoutes: Route = ???
     
-    Http().bindAndHandle(StatsCollector(myRoutes), "localhost", 8080) foreach { _ =>
+    Http().bindAndHandle(GracefulShutdownSupport(StatsCollector(myRoutes)), "localhost", 8080) foreach { _ =>
       new StandaloneExport(8081).start()
     }
    
-Altenatively, the metrics route can be included in another routing as follows (Be aware that this will slightly
+Alternatively, the metrics route can be included in another routing as follows (Be aware that this will slightly
 modify statics as the metrics requests will be counted in the metrics themselves): 
     
     val myRoutes: Route = ???
     val fullRoutes = myRoutes ~ get(path("metrics")(IncludedHttpExport.statusRoute))
     Http().bindAndHandle(StatsCollector(fullRoutes), "localhost", 8080)
        
+As you can decide to include both metrics, support for the graceful shutdown or either one by itself. If you include
+the `StatsCollector` inside the `GracefulShutdownSupport`, health checks will not be metered. By reversing the 
+order, they will be metered. 
 
 ## Exported Metrics
 
