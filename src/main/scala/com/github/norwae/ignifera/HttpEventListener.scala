@@ -14,12 +14,13 @@ trait HttpEventListener {
 
   /**
     * called when a request is completed, and the response completed
+    *
     * @param requestMethod method
-    * @param requestUri request URI
-    * @param requestSize request size, if possible to cheaply determine
-    * @param responseCode response code computed
-    * @param responseSize response size, if possible to cheaply determine
-    * @param duration request duration
+    * @param requestUri    request URI
+    * @param requestSize   request size, if possible to cheaply determine
+    * @param responseCode  response code computed
+    * @param responseSize  response size, if possible to cheaply determine
+    * @param duration      request duration
     */
   def onRequestEnd(requestMethod: HttpMethod, requestUri: Uri, requestSize: Option[Long],
                    responseCode: StatusCode, responseSize: Option[Long],

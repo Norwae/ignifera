@@ -14,10 +14,14 @@ package com.github.norwae.ignifera
 sealed trait HealthCheckType
 
 object HealthCheckType {
+
   /** GET /health */
   case object Health extends HealthCheckType
+
   /** GET /health/readiness */
   case object Readiness extends HealthCheckType
+
   /** DELETE /health/readiness */
   case object RequestShutdown extends HealthCheckType
+
 }

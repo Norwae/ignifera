@@ -29,8 +29,9 @@ object AkkaStats {
     Counter.build("app_akka_unhandled_msg", "Nr of unhandled messages in the system").create()
 
   /**
-    * Register the addtional stats. The default implementation will register two additional
+    * Register the additional stats. The default implementation will register two additional
     * stats, counting the dead letters and unhandled messages.
+    *
     * @param system actor system to observe.
     */
   def register()(implicit system: ActorSystem): Unit = {

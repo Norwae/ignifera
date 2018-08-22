@@ -19,7 +19,7 @@ object HttpCollectors {
     if (config.hasPath("quantiles.summary")) config.getDoubleList("quantiles.summary").asScala.map(_.doubleValue)
     else Seq(0.01, 0.05, 0.5, 0.95, 0.99, 0.999)
 
-  private def quantize(summary: Summary.Builder, config: Config) = quantilesAndError(config).foldLeft(summary)((s, q) ⇒ s.quantile(q,  (1 - q) / 10))
+  private def quantize(summary: Summary.Builder, config: Config) = quantilesAndError(config).foldLeft(summary)((s, q) ⇒ s.quantile(q, (1 - q) / 10))
 
   lazy val requestsInFlight: Gauge = Gauge.
     build("http_requests_in_flight", "Requests currently in flight").
@@ -30,18 +30,18 @@ object HttpCollectors {
     labelNames("method", "code").
     register()
 
-  lazy val requestTimes: Once[Config, Summary] = new Once( c ⇒
+  lazy val requestTimes: Once[Config, Summary] = new Once(c ⇒
     quantize(Summary.
       build("http_request_duration_microseconds", "Time to response determined"), c).
       register()
   )
 
-  lazy val responseSize: Once[Config, Summary] = new Once( c ⇒
-      quantize(Summary.build("http_response_size_bytes", "Response size (estimated)"), c).
+  lazy val responseSize: Once[Config, Summary] = new Once(c ⇒
+    quantize(Summary.build("http_response_size_bytes", "Response size (estimated)"), c).
       register())
 
-  lazy val requestSize: Once[Config, Summary] = new Once( c ⇒
+  lazy val requestSize: Once[Config, Summary] = new Once(c ⇒
     quantize(Summary.
-    build("http_request_size_bytes", "Request size (estimated)"), c).
-    register())
+      build("http_request_size_bytes", "Request size (estimated)"), c).
+      register())
 }

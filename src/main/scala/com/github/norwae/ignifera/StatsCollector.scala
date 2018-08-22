@@ -2,7 +2,7 @@ package com.github.norwae.ignifera
 
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import akka.stream.scaladsl.{BidiFlow, Flow, Keep}
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.ConfigFactory
 
 /**
   * Allows to wrap a handler flow (as usually passed to
@@ -12,6 +12,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 object StatsCollector {
   /**
     * creates a stats collector reporting to [[PrometheusStatisticsListener]] with default config
+    *
     * @param flow application flow
     * @tparam A materialized value
     * @return wrapped flow
@@ -21,7 +22,8 @@ object StatsCollector {
 
   /**
     * creates a stats collector reporting to [[PrometheusStatisticsListener]] with the provided collectors
-    * @param flow application flow
+    *
+    * @param flow       application flow
     * @param collectors http collector
     * @tparam A materialized value
     * @return wrapped flow
@@ -31,7 +33,8 @@ object StatsCollector {
 
   /**
     * creates a stats collector reporting to the specified listeners
-    * @param flow application flow
+    *
+    * @param flow      application flow
     * @param listeners listeners to inform on requests
     * @tparam A materialized value
     * @return wrapped flow

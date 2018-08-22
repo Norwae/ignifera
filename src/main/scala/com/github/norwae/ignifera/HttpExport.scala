@@ -20,6 +20,7 @@ trait HttpExport {
   DefaultExports.initialize()
 
   val registry: CollectorRegistry = CollectorRegistry.defaultRegistry
+
   /**
     * Queries the [[registry]] and produces an [[HttpResponse]] object that encapsulates
     * the entire response. The entire response will be loaded into memory.

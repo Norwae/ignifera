@@ -33,11 +33,11 @@ object GracefulShutdownSupport {
     * handling the health requests, and the appOut and appIn connected
     * to a flow handling the main application logic.
     *
-    * @param mainIn request input
-    * @param mainOut response output
-    * @param appIn application responses
-    * @param appOut application requests
-    * @param healthIn health responses
+    * @param mainIn    request input
+    * @param mainOut   response output
+    * @param appIn     application responses
+    * @param appOut    application requests
+    * @param healthIn  health responses
     * @param healthOut health requests
     */
   class GSSShape(val mainIn: Inlet[HttpRequest], val mainOut: Outlet[HttpResponse],
@@ -66,15 +66,15 @@ object GracefulShutdownSupport {
     * by a [[DefaultHealthFlow]]. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]
     * will remain unconnected and provide the open ports of the stage.
     *
-    * @param flow main application flow
-    * @param onReadyHandler readiness callback. Defaults to [[noReadyCheck()]]
+    * @param flow              main application flow
+    * @param onReadyHandler    readiness callback. Defaults to [[noReadyCheck()]]
     * @param onShutdownHandler shutdown handler. Defaults to [[noShutdownHandler()]]
     * @tparam A materialized value of the inner flow
     * @return adapted flow
     */
   def apply[A](flow: Flow[HttpRequest, HttpResponse, A],
-               onReadyHandler: () ⇒ Future[Done] = noReadyCheck,
-               onShutdownHandler: () ⇒ Unit = noShutdownHandler
+               onReadyHandler: () ⇒ Future[Done] = noReadyCheck _,
+               onShutdownHandler: () ⇒ Unit = noShutdownHandler _
               ): Flow[HttpRequest, HttpResponse, A] = {
     GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(onReadyHandler, onShutdownHandler)), flow)
   }
@@ -82,7 +82,7 @@ object GracefulShutdownSupport {
   /** construct a new graceful shutdown stage. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]
     * will remain unconnected and provide the open ports of the stage.
     *
-    * @param healthFlow flow to provide health check
+    * @param healthFlow      flow to provide health check
     * @param applicationFlow flow providing the main application logic
     * @tparam A materialized value type
     * @return adapted flow

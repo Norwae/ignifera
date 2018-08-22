@@ -1,4 +1,5 @@
 package com.github.norwae.ignifera
+
 import akka.http.scaladsl.model.{HttpMethod, StatusCode, Uri}
 import io.prometheus.client.Summary
 
@@ -13,9 +14,11 @@ import scala.concurrent.duration.FiniteDuration
   * * http_request_duration_microseconds - summary - request times
   * * http_response_size_bytes - summary - response bytes
   * * http_request_size_bytes - summary - request bytes
+  *
   * @param collectors collector object
   */
 class PrometheusStatisticsListener(collectors: HttpCollectors) extends HttpEventListener {
+
   import collectors._
 
   override def onRequestStart(): Unit = {

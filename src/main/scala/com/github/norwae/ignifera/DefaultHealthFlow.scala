@@ -6,7 +6,7 @@ import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
 
 import scala.concurrent.{ExecutionContext, Future}
-import scala.util.Try
+import scala.util.Success
 
 /**
   * Default implementation for health / graceful shutdown handling. The
@@ -16,14 +16,15 @@ import scala.util.Try
   * Receiving a [[HealthCheckType.RequestShutdown]] causes the
   * `/health/readiness` to always return 500.
   *
-  * @param readiness readiness callback
+  * @param readiness  readiness callback
   * @param onShutdown shutdown callback
   */
-class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]]{
+class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]] {
   private val in = Inlet[HealthCheckType]("in")
   private val out = Outlet[HttpResponse]("out")
 
   def badStatus: StatusCode = StatusCodes.InternalServerError
+
   def goodStatus: StatusCode = StatusCodes.NoContent
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) with InHandler with OutHandler {
@@ -54,7 +55,9 @@ class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit)
           provideResponse(goodStatus)
           Future(onShutdown())
         case HealthCheckType.Readiness if !shutdown ⇒
-          readiness() andThen PartialFunction(r ⇒ asyncProvideResponse.invoke(if (r.isSuccess) goodStatus else badStatus))
+          readiness().
+            transform(t ⇒ Success(if (t.isSuccess) goodStatus else badStatus)).
+            foreach(asyncProvideResponse.invoke)
         case _ ⇒ provideResponse(badStatus)
       }
     }

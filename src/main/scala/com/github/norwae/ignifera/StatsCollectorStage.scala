@@ -12,7 +12,7 @@ import scala.concurrent.duration._
   * but on completion of a http request, metrics will be published to the observers.
   *
   */
-class StatsCollectorStage(observers: Seq[HttpEventListener]) extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]]{
+class StatsCollectorStage(observers: Seq[HttpEventListener]) extends GraphStage[BidiShape[HttpRequest, HttpRequest, HttpResponse, HttpResponse]] {
   private val inboundRequest = Inlet[HttpRequest]("rq-in")
   private val outboundRequest = Outlet[HttpRequest]("rq-out")
   private val inboundResponse = Inlet[HttpResponse]("rp-in")
