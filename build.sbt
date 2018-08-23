@@ -2,7 +2,7 @@ import sbt.Keys.description
 
 inThisBuild(Seq(
   organization := "com.github.norwae",
-  version := "1.1.0",
+  version := "1.1.1-SNAPSHOT",
   scalaVersion := "2.12.6",
 ))
 
