@@ -4,9 +4,24 @@ import akka.Done
 import akka.http.scaladsl.model.{HttpResponse, StatusCode, StatusCodes}
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.stream.{Attributes, FlowShape, Inlet, Outlet}
+import io.prometheus.client.CollectorRegistry
+import io.prometheus.client.exporter.PushGateway
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Success
+
+/**
+  * Configuration class for [[DefaultHealthFlow]]
+  *
+  * @param readiness            readiness callback
+  * @param onShutdown           shutdown callback
+  * @param shutdownPushEndpoint endpoint for final prometheus metrics push before shutdown
+  */
+case class HealthFlowConfiguration(
+  readiness: () => Future[Done],
+  onShutdown: () => Unit,
+  shutdownPushEndpoint: Option[String]
+)
 
 /**
   * Default implementation for health / graceful shutdown handling. The
@@ -16,12 +31,13 @@ import scala.util.Success
   * Receiving a [[HealthCheckType.RequestShutdown]] causes the
   * `/health/readiness` to always return 500.
   *
-  * @param readiness  readiness callback
-  * @param onShutdown shutdown callback
+  * @param config [[HealthFlowConfiguration]] containing config parameter
   */
-class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]] {
+class DefaultHealthFlow(config: HealthFlowConfiguration) extends GraphStage[FlowShape[HealthCheckType, HttpResponse]] {
   private val in = Inlet[HealthCheckType]("in")
   private val out = Outlet[HttpResponse]("out")
+
+  var pushGateway: Option[PushGateway] = if(config.shutdownPushEndpoint isDefined) Some(new PushGateway(config.shutdownPushEndpoint get)) else None
 
   def badStatus: StatusCode = StatusCodes.InternalServerError
 
@@ -46,6 +62,8 @@ class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit)
     private val asyncProvideResponse = getAsyncCallback(provideResponse)
 
     override def onPush(): Unit = {
+      import config._
+
       pending = true
       val checkType = grab(in)
       checkType match {
@@ -54,6 +72,9 @@ class DefaultHealthFlow(readiness: () ⇒ Future[Done], onShutdown: () ⇒ Unit)
           shutdown = true
           provideResponse(goodStatus)
           Future(onShutdown())
+          if (pushGateway isDefined) {
+            pushGateway.get.push(CollectorRegistry.defaultRegistry, "")
+          }
         case HealthCheckType.Readiness if !shutdown ⇒
           readiness().
             transform(t ⇒ Success(if (t.isSuccess) goodStatus else badStatus)).

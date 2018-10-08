@@ -9,6 +9,7 @@ import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.{Done, stream}
 import com.github.norwae.ignifera.GracefulShutdownSupport.GSSShape
 import com.github.norwae.ignifera.HealthCheckType.{Health, Readiness, RequestShutdown}
+import com.typesafe.config.ConfigFactory
 
 import scala.collection.immutable
 import scala.concurrent.Future
@@ -55,12 +56,13 @@ object GracefulShutdownSupport {
     )
   }
 
-
   /** do not perform a deep readiness check */
   def noReadyCheck(): Future[Done] = Future.successful(Done)
 
   /** do no explicit shutdown handling, just wait for requests to drain */
   def noShutdownHandler(): Unit = ()
+
+  private val referenceConfig = ConfigFactory.parseResources("reference.conf").resolve()
 
   /** construct a new graceful shutdown stage. The health flow will be provided
     * by a [[DefaultHealthFlow]]. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]
@@ -76,7 +78,9 @@ object GracefulShutdownSupport {
                onReadyHandler: () ⇒ Future[Done] = noReadyCheck _,
                onShutdownHandler: () ⇒ Unit = noShutdownHandler _
               ): Flow[HttpRequest, HttpResponse, A] = {
-    GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(onReadyHandler, onShutdownHandler)), flow)
+    GracefulShutdownSupport(Flow.fromGraph(new DefaultHealthFlow(
+      HealthFlowConfiguration(onReadyHandler, onShutdownHandler, Option(referenceConfig.getString("shutdown.push.endpoint"))))),
+      flow)
   }
 
   /** construct a new graceful shutdown stage. The [[GSSShape.mainIn]] and [[GSSShape.mainOut]]

@@ -36,7 +36,7 @@ lazy val main = project in file(".") settings(
   publishMavenStyle := true,
   libraryDependencies ++= {
     val akkaVersion = "2.5.14"
-    val prometheusVersion = "0.0.21"
+    val prometheusVersion = "0.5.0"
     val akkaHttpVersion = "10.1.3"
 
     Seq(
@@ -50,12 +50,14 @@ lazy val main = project in file(".") settings(
       "io.prometheus" % "simpleclient" % prometheusVersion,
       "io.prometheus" % "simpleclient_hotspot" % prometheusVersion,
       "io.prometheus" % "simpleclient_common" % prometheusVersion,
+      "io.prometheus" % "simpleclient_pushgateway" % prometheusVersion,
 
       // slf4j for access logs
       "org.slf4j" % "slf4j-api" % "1.7.25",
 
       // testing dependencies
-      "org.scalatest" %% "scalatest" % "3.0.1" % "test"
+      "org.scalatest" %% "scalatest" % "3.0.1" % "test",
+      "org.mockito" %% "mockito-scala" % "0.4.5" % "test"
     )
   },
   scmInfo := Some(ScmInfo(url("https://github.com/norwae/ignifera"), "scm:git:https://github.com/Norwae/ignifera.git", Some("scm:git:ssh://git@github.com:Norwae/ignifera.git"))),

@@ -39,6 +39,10 @@ As you can decide to include both metrics, support for the graceful shutdown or 
 the `StatsCollector` inside the `GracefulShutdownSupport`, health checks will not be metered. By reversing the 
 order, they will be metered. 
 
+If the `GracefulShutdownSupport` has been included it can be configured to send a final metrics push to a specified 
+endpoint before shutting down. To activate this feature the environment variable `PROMETHEUS_PUSH_GATEWAY` has to be set
+ to the target which should receive the metrics.
+
 ## Exported Metrics
 
 ### http_requests_in_flight 
