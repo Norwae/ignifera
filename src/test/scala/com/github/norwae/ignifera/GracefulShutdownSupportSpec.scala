@@ -59,6 +59,10 @@ class GracefulShutdownSupportSpec extends FlatSpec with BeforeAndAfterAll with M
         StatusCodes.NotFound)
   }
 
+  it should "load and resolve the configuration successfully" in {
+    GracefulShutdownSupport.config.isResolved shouldBe true
+  }
+
   private def runRequest(healthFlow: Flow[HealthCheckType, HttpResponse, Any],
                  appFlow: Flow[HttpRequest, HttpResponse, Any],
                  rq: HttpRequest) = runRequests(healthFlow, appFlow, rq).head
